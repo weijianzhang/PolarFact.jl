@@ -1,18 +1,23 @@
+## Documentation: http://docs.travis-ci.com/user/languages/julia/
 language: julia
-sudo: false
 os:
   - linux
   - osx
 julia:
-  - 0.3
-  - 0.4
+  - 1.0
+  - 1.5
   - nightly
 notifications:
   email: false
+git:
+  depth: 99999999
 
-script:
-  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("PolarFact")'
-  - julia -e ' Pkg.test("PolarFact"; coverage=true)'
+## uncomment the following lines to allow failures on nightly julia
+## (tests will run but not make your overall status red)
+matrix:
+  allow_failures:
+  - julia: nightly
+
 after_success:
-  - julia -e 'cd(Pkg.dir("PolarFact")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
+  - julia --project=test/coverage -e 'using Pkg; Pkg.instantiate()'
+  - julia --project=test/coverage test/coverage/coverage.jl

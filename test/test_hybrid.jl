@@ -1,4 +1,5 @@
-n = rand(1:10)
+@testset "Hybrid" begin
+    for n in [1,3,10]
 
 A = rand(n,n)
 
@@ -10,16 +11,17 @@ r = polarfact(A, alg =:hybrid);
 U = r.U
 H = r.H
 
-@test_approx_eq_eps U'*U eye(n) 1e-7
+@test U'*U ≈ Matrix(I,n,n) atol=1e-7
 
 # Test Hermitian positive semifefinite matrix H
 
-@test issym(H)
+@test issymmetric(H)
  
 for i in eigvals(H)
     @test i >= 0.
 end
 
-@test_approx_eq_eps A U*H 1e-7
+@test A ≈ U*H atol=1e-7
 
-println("Hybrid method passed test...")
+    end
+end

@@ -1,4 +1,5 @@
-n = rand(1:10)
+@testset "Halley" begin
+    for n in [1,3,10]
 
 A = rand(n, n)
 
@@ -10,21 +11,24 @@ r = polarfact(A, alg = :halley);
 U = r.U
 H = r.H
 
-@test_approx_eq_eps U'*U eye(n) 1e-7
+@test U'*U ≈ Matrix(I,n,n) atol=1e-7
 
 # Test Hermitian positive semifefinite matrix H
 
-@test issym(H)
+@test issymmetric(H)
  
 for i in eigvals(H)
     @test i >= 0.
 end
 
-@test_approx_eq A U*H
+@test A ≈ U*H
 
-println("Halley method passed test...")
+    end
+end
 
 ##########################################################
+@testset "QDWH" begin
+    for n in [1,3,10]
 
 m = rand(1:10)
 
@@ -37,16 +41,18 @@ r2 = polarfact(B, alg = :qdwh);
 U2 = r2.U
 H2 = r2.H
 
-@test_approx_eq_eps U2'*U2 eye(m) 1e-7
+@test U2'*U2 ≈ Matrix(I,m,m) atol=1e-7
 
 # Test Hermitian positive semifefinite matrix H
 
-@test issym(H2)
+@test issymmetric(H2)
  
 for i in eigvals(H2)
     @test i >= 0.
 end
 
-@test_approx_eq B U2*H2
+@test B ≈ U2*H2
 
-println("QDWH method passed test...")
+
+    end
+end

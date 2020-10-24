@@ -1,6 +1,6 @@
 # PolarFact
 
-[![Build Status](https://travis-ci.org/weijianzhang/PolarFact.jl.svg?branch=master)](https://travis-ci.org/weijianzhang/PolarFact.jl)
+[![Build Status](https://travis-ci.com/weijianzhang/PolarFact.jl.svg?branch=master)](https://travis-ci.org/weijianzhang/PolarFact.jl)
 
 A Julia package for the matrix polar decomposition.
 

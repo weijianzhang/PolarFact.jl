@@ -7,35 +7,35 @@
 # Vol. 31, Num 5 (2010) pp. 2700-2720 
 #
 
-type HalleyAlg{T} <: PolarAlg
+mutable struct HalleyAlg{T} <: PolarAlg
     maxiter::Int
     verbose::Bool
     tol::T
     
-    function HalleyAlg(;maxiter::Integer=100,
+    function HalleyAlg{T}( ;maxiter::Integer=100,
                        verbose::Bool=false,
-                       tol::Real = cbrt(eps(T)))
+                       tol::Real = cbrt(eps(T))) where T
         maxiter > 1 || error("maxiter must be greater than 1.")
         tol > 0 || error("tol must be positive.")
         
-        new(maxiter,
+        new{T}(maxiter,
             verbose,
             tol)
     end
 end
 
-function solve!{T}(alg::HalleyAlg,
-                X::Matrix{T}, U::Matrix{T}, H::Matrix{T})
+function solve!(alg::HalleyAlg{T},
+                X::Matrix{T}, U::Matrix{T}, H::Matrix{T}) where {T}
     common_iter!(HalleyUpdater(), X, U, H, alg.maxiter, alg.verbose, alg.tol)
 end
 
-immutable HalleyUpdater <: PolarUpdater end
+struct HalleyUpdater <: PolarUpdater end
 
 
-function update_U!{T}(upd::HalleyUpdater, U::Matrix{T})   
-    UtU = Array(T, size(U))
-    At_mul_B!(UtU, U, U)
-    copy!(U, U * (3*I + UtU)* inv(I + 3*UtU))
+function update_U!(upd::HalleyUpdater, U::Matrix{T}) where {T}
+    UtU = Array{T}(undef, size(U))
+    mul!(UtU, transpose(U), U)
+    copyto!(U, U * (3*I + UtU)* inv(I + 3*UtU))
 end
 
 #
@@ -51,20 +51,20 @@ end
 #                 norm and condition number estimate, which are currently 
 #                 not available in Julia.
 #
-type QDWHAlg{T} <: PolarAlg
+mutable struct QDWHAlg{T} <: PolarAlg
     maxiter::Int
     verbose::Bool
     piv::Bool       # whether to pivot  
     tol::T  
     
-    function QDWHAlg(;maxiter::Integer=100,
+    function QDWHAlg{T}( ;maxiter::Integer=100,
                      verbose::Bool=false,
                      piv::Bool=true, 
-                     tol::Real=cbrt(eps(T)))
+                     tol::Real=cbrt(eps(T))) where T
         maxiter > 1 || error("maxiter must be greater than 1.")
         tol > 0 || error("tol must be positive.")
         
-        new(maxiter,
+        new{T}(maxiter,
             verbose,
             piv,
             tol)
@@ -72,39 +72,39 @@ type QDWHAlg{T} <: PolarAlg
 end
 
 
-function solve!{T}(alg::QDWHAlg,
-                X::Matrix{T}, U::Matrix{T}, H::Matrix{T})
+function solve!(alg::QDWHAlg,
+                X::Matrix{T}, U::Matrix{T}, H::Matrix{T}) where {T}
     # alpha is an estimate of the largest singular value of the
     # original matrix
-    X_temp = Array(T, size(X))
-    copy!(X_temp, X)
+    X_temp = Array{T}(undef, size(X))
+    copyto!(X_temp, X)
 
     n = size(X_temp, 1)
-    alpha = vecnorm(X_temp)   
+    alpha = norm(X_temp)   
     for i in length(X_temp)
         X_temp[i] /= alpha # form X0
     end
 
     # L is a lower bound for the smallest singular value of X0
-    smin_est = norm(X_temp, 1)/cond(X_temp, 1)
+    smin_est = opnorm(X_temp, 1)/cond(X_temp, 1)
     L  = smin_est/convert(T, sqrt(n))
 
     common_iter!(QDWHUpdater(alg.piv, L), X, U, H, alg.maxiter, alg.verbose, alg.tol)
 end
 
-type QDWHUpdater{T} <: PolarUpdater
+mutable struct QDWHUpdater{T} <: PolarUpdater
     piv::Bool   # whether to pivot QR factorization
     L::T  # a lower bound for the smallest singluar value of each update matrix U
 end
 
 
-function update_U!{T}(upd::QDWHUpdater, U::Matrix{T})   
+function update_U!(upd::QDWHUpdater, U::Matrix{T}) where {T}
     piv = upd.piv
     L = upd.L
     m, n = size(U)
-    B = Array(T, m+n, n)
-    Q1 = Array(T, n, n)
-    Q2 = Array(T, n, n)
+    B = Array{T}(undef, m+n, n)
+    Q1 = Array{T}(undef, n, n)
+    Q2 = Array{T}(undef, n, n)
     # Compute paramters L, a, b, c
     L2 = L^2
     dd = try
@@ -121,15 +121,15 @@ function update_U!{T}(upd::QDWHUpdater, U::Matrix{T})
     # update L
     upd.L = L * (a + b * L2)/(1 + c * L2)
     
-    copy!(B, [sqrt(c)*U; eye(n)])
+    copyto!(B, [sqrt(c)*U; Matrix(one(T)*I,n,n)])
     if piv 
-        VERSION < v"0.4.0-dev+1827" ? F = qrfact(B, pivot = true) : F = qrfact(B, Val{true})  
+        F = qr(B, Val(true))
     else
-        F = qrfact(B)
+        F = qr(B)
     end
-    copy!(Q1, full(F[:Q])[1:m, :])
-    copy!(Q2, full(F[:Q])[m+1:end, :])
-    copy!(U, b / c * U + (a - b / c) / sqrt(c) * Q1 * Q2')
+    copyto!(Q1, Matrix(F.Q)[1:m, :])
+    copyto!(Q2, Matrix(F.Q)[m+1:end, :])
+    copyto!(U, b / c * U + (a - b / c) / sqrt(c) * Q1 * Q2')
     
 end
 

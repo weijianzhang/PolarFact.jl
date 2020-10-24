@@ -2,7 +2,7 @@
 
 # the result type
 
-immutable Result{T}
+struct Result{T}
     U::Matrix{T}
     H::Matrix{T}
     niters::Integer
@@ -10,20 +10,20 @@ immutable Result{T}
     
     function Result(U::Matrix{T}, H::Matrix{T}, 
                     niter::Integer, 
-                    converged::Bool)
+                    converged::Bool) where {T}
         size(U, 2) == size(H, 1) || 
                throw(DimensionMismatch("Inner dimension of U and H mismatch."))
-        new(U, H, niter, converged)
+        new{T}(U, H, niter, converged)
     end
 end
 
-immutable SVDResult{T}
+struct SVDResult{T}
     U::Matrix{T}
     H::Matrix{T}
-    function SVDResult(U::Matrix{T}, H::Matrix{T})
+    function SVDResult(U::Matrix{T}, H::Matrix{T}) where {T}
         size(U, 2) == size(H, 1) || 
                throw(DimensionMismatch("Inner dimension of U and H mismatch."))
-        new(U, H)
+        new{T}(U, H)
     end
 end
 
@@ -31,42 +31,42 @@ end
 
 # the objective type
 
-immutable Objective{T}
+struct Objective{T}
     absolute::T  # absolute error
     relative::T  # relative error
 
-    function Objective(absolute::Real, relative::Real)
+    function Objective(absolute::T, relative::T) where {T <: Real}
         absolute >= 0 || error("absolute must be non-negative.")
         relative >= 0 || error("relative must be non-negative.")
 
-        new(absolute, relative)
+        new{T}(absolute, relative)
     end
 end
 
 
-function evaluate_objv{T}(preU::Matrix{T}, U::Matrix{T})
-    rel = norm(preU - U, Inf) / norm(preU, Inf)
-    abs = norm(I - U'*U, Inf)
+function evaluate_objv(preU::Matrix{T}, U::Matrix{T}) where {T}
+    rel = opnorm(preU - U, Inf) / opnorm(preU, Inf)
+    abs = opnorm(I - U'*U, Inf)
     return Objective{T}(rel, abs)
 end
 
 
-abstract PolarUpdater
+abstract type PolarUpdater end
 
-abstract PolarAlg
+abstract type PolarAlg end
 
 # common algorithm skeleton for iterative updating methods
 
-function common_iter!{T}(updater::PolarUpdater,
+function common_iter!(updater::PolarUpdater,
                          X::Matrix{T}, 
                          U::Matrix{T}, 
                          H::Matrix{T},
                          maxiter::Int,
                          verbose::Bool,
-                         tol::T)
+                         tol::T) where {T}
     
-    preU = Array(T, size(X))
-    copy!(U, X)
+    preU = Array{T}(undef, size(X))
+    copyto!(U, X)
     converged = false
     t = 0
     if verbose
@@ -75,11 +75,11 @@ function common_iter!{T}(updater::PolarUpdater,
 
     while !converged && t < maxiter
         t += 1
-        copy!(preU, U)
+        copyto!(preU, U)
         update_U!(updater, U)
                
         # determine convergence
-        diff = vecnorm(preU - U)
+        diff = norm(preU - U)
         if diff < tol
             converged = true
         end
@@ -93,22 +93,22 @@ function common_iter!{T}(updater::PolarUpdater,
     end
 
     # compute H
-    A_mul_B!(H, U', X)
-    H = 0.5 * (H + H')
-    return Result{T}(U, H, t, converged)
+    mul!(H, U', X)
+    H = (1/T(2)) * (H + H')
+    return Result(U, H, t, converged)
 end
 
 # Scaling iterative algorithm
-function common_iter_scal!{T}(updater::PolarUpdater,
+function common_iter_scal!(updater::PolarUpdater,
                               X::Matrix{T}, 
                               U::Matrix{T}, 
                               H::Matrix{T},
                               maxiter::Int,
                               verbose::Bool,
-                              tol::T)
+                              tol::T) where {T}
     
-    preU = Array(T, size(X))
-    copy!(U, X)
+    preU = Array{T}(undef, size(X))
+    copyto!(U, X)
     converged = false
     t = 0
     if verbose
@@ -117,17 +117,17 @@ function common_iter_scal!{T}(updater::PolarUpdater,
 
     while !converged && t < maxiter
         t += 1
-        copy!(preU, U)
+        copyto!(preU, U)
         update_U!(updater, U)
         
         # determine convergence
-        diff = vecnorm(preU - U)
+        diff = norm(preU - U)
         if diff < tol
             converged = true
         end
         
         # determine scaling
-        reldiff = diff/vecnorm(U) # relative error
+        reldiff = diff/norm(U) # relative error
         if updater.scale && (reldiff < updater.scale_tol)
             updater.scale = false
         end
@@ -141,15 +141,15 @@ function common_iter_scal!{T}(updater::PolarUpdater,
     end
 
     # compute H
-    A_mul_B!(H, U', X)
-    H = 0.5 * (H + H')
-    return Result{T}(U, H, t, converged)
+    mul!(H, U', X)
+    H = (1/T(2)) * (H + H')
+    return Result(U, H, t, converged)
 end
 
 
 
 # Hybrid iteration algorithm 
-function common_iter_hybr!{T}(updater1::PolarUpdater,
+function common_iter_hybr!(updater1::PolarUpdater,
                               updater2::PolarUpdater,
                               X::Matrix{T}, 
                               U::Matrix{T}, 
@@ -157,10 +157,10 @@ function common_iter_hybr!{T}(updater1::PolarUpdater,
                               maxiter::Int,
                               verbose::Bool,
                               tol::T,
-                              theta::T) # theta is the switch parameter
+                              theta::T) where {T} # theta is the switch parameter
 
-    preU = Array(T, size(X))
-    copy!(U, X)
+    preU = Array{T}(undef, size(X))
+    copyto!(U, X)
     converged = false
     switched = false
     t = 0
@@ -170,12 +170,12 @@ function common_iter_hybr!{T}(updater1::PolarUpdater,
 
     while !converged && t < maxiter
         t += 1
-        copy!(preU, U)
+        copyto!(preU, U)
 
         if switched
             update_U!(updater2, U)        
         else
-            obj = norm(I - U'*U, 1)
+            obj = opnorm(I - U'*U, 1)
             if obj > theta # theta is the switch parameter
                 update_U!(updater1, U)
             else
@@ -185,7 +185,7 @@ function common_iter_hybr!{T}(updater1::PolarUpdater,
         end
 
         # determine convergence
-        diff = vecnorm(preU - U)
+        diff = norm(preU - U)
         if diff < tol
             converged = true
         end
@@ -199,7 +199,7 @@ function common_iter_hybr!{T}(updater1::PolarUpdater,
     end
 
     # compute H
-    A_mul_B!(H, U', X)
-    H = 0.5 * (H + H')
-    return Result{T}(U, H, t, converged)
+    mul!(H, U', X)
+    H = (1/T(2)) * (H + H')
+    return Result(U, H, t, converged)
 end
